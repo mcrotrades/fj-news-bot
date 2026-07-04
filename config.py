@@ -7,12 +7,12 @@
 
 # ─── TELEGRAM ──────────────────────────────────────────────────────────────────
 # Get your bot token from @BotFather on Telegram
-BOT_TOKEN = "8781053968:AAE2f3-DtO7Cl6r41lGkZ97QqKPlu6y2GjE"
+BOT_TOKEN = "8745138732:AAEkC_sE9W4TCr7Mh7ieW6UvhXDKmHHEbM8"
 
 # Channel IDs (use negative numbers for channels, e.g. -1001234567890)
 # To get channel ID: forward a message from your channel to @userinfobot
 CHANNEL_COT = "@CircleOfTraders"    # or use numeric ID like -1001234567890
-CHANNEL_MCR = "TELEGRAM_CHAT_ID",   "-1003786027315"
+CHANNEL_MCR = "TELEGRAM_CHAT_ID",   "-1004370012411"
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 # How often to check Financial Juice RSS (seconds)
