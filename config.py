@@ -7,7 +7,7 @@
 
 # ─── TELEGRAM ──────────────────────────────────────────────────────────────────
 # Get your bot token from @BotFather on Telegram
-BOT_TOKEN = 8781053968:AAE2f3-DtO7Cl6r41lGkZ97QqKPlu6y2GjE
+BOT_TOKEN = "8781053968:AAE2f3-DtO7Cl6r41lGkZ97QqKPlu6y2GjE"
 
 # Channel IDs (use negative numbers for channels, e.g. -1001234567890)
 # To get channel ID: forward a message from your channel to @userinfobot
