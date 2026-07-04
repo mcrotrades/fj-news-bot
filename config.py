@@ -1,6 +1,6 @@
 """
 ═══════════════════════════════════════
-  FJ NEWS BOT — Configuration
+  FJ NEWS BOT v3.0 — Configuration
 ═══════════════════════════════════════
 """
 import os
@@ -9,6 +9,10 @@ import os
 BOT_TOKEN   = os.environ.get("BOT_TOKEN",   "8745138732:AAEkC_sE9W4TCr7Mh7ieW6UvhXDKmHHEbM8")
 CHANNEL_COT = os.environ.get("CHANNEL_COT", "-1004370012411")
 CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
+
+# ─── ANTHROPIC AI ──────────────────────────────────────────────────────────────
+# Get your API key from: https://console.anthropic.com
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))

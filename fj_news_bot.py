@@ -1,10 +1,11 @@
 """
 ═══════════════════════════════════════════════════════════════
-  FJ NEWS BOT v2.0 — Financial Juice Flash + Economic Data
+  FJ NEWS BOT v3.0 — News Flash + AI Trading Analysis
   Broadcasts to Telegram channels
-  Author: RD | Version: 2.0
+  Author: RD | Version: 3.0
   - Multi-source RSS with automatic fallback
-  - ForexFactory + TradingEconomics calendar fallback
+  - Claude AI analysis on every news item
+  - SMC context, currency impact, Gold/Oil implications
 ═══════════════════════════════════════════════════════════════
 """
 
@@ -25,6 +26,7 @@ from config import (
     CHANNEL_MCR,
     FJ_POLL_INTERVAL,
     ECON_POLL_INTERVAL,
+    ANTHROPIC_API_KEY,
 )
 
 # ─── LOGGING ───────────────────────────────────────────────────────────────────
@@ -41,36 +43,15 @@ log = logging.getLogger("FJ_BOT")
 
 PHT = ZoneInfo("Asia/Manila")
 
-# ─── NEWS SOURCES (priority order — first working one wins) ────────────────────
+# ─── NEWS SOURCES ──────────────────────────────────────────────────────────────
 NEWS_SOURCES = [
-    {
-        "name": "FinancialJuice",
-        "url":  "https://www.financialjuice.com/feed.aspx?xy=rss",
-        "label": "FJ",
-    },
-    {
-        "name": "ForexLive",
-        "url":  "https://www.forexlive.com/feed/news",
-        "label": "ForexLive",
-    },
-    {
-        "name": "FXStreet",
-        "url":  "https://www.fxstreet.com/rss/news",
-        "label": "FXStreet",
-    },
-    {
-        "name": "DailyFX",
-        "url":  "https://www.dailyfx.com/feeds/all",
-        "label": "DailyFX",
-    },
-    {
-        "name": "Investing",
-        "url":  "https://www.investing.com/rss/news.rss",
-        "label": "Investing",
-    },
+    {"name": "FinancialJuice", "url": "https://www.financialjuice.com/feed.aspx?xy=rss",  "label": "FJ"},
+    {"name": "ForexLive",      "url": "https://www.forexlive.com/feed/news",               "label": "ForexLive"},
+    {"name": "FXStreet",       "url": "https://www.fxstreet.com/rss/news",                 "label": "FXStreet"},
+    {"name": "DailyFX",        "url": "https://www.dailyfx.com/feeds/all",                 "label": "DailyFX"},
+    {"name": "Investing",      "url": "https://www.investing.com/rss/news.rss",            "label": "Investing"},
 ]
 
-# ─── ECONOMIC CALENDAR SOURCES (priority order) ────────────────────────────────
 CALENDAR_SOURCES = [
     "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
     "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
@@ -87,18 +68,17 @@ HEADERS = {
 
 # ─── KEYWORD MAPS ──────────────────────────────────────────────────────────────
 CURRENCY_KEYWORDS = {
-    "USD": ["fed", "fomc", "powell", "nfp", "cpi", "ppi", "gdp", "retail sales",
-            "unemployment", "jobless", "ism", "pce", "durable goods", "jolts",
-            "dollar", "usd", "us ", "u.s.", "american", "treasury"],
-    "EUR": ["ecb", "lagarde", "euro", "eur", "eurozone", "german", "france",
-            "italy", "spain", "ifo", "zew"],
-    "GBP": ["boe", "bailey", "sterling", "pound", "gbp", "uk ", "britain",
-            "british", "england"],
-    "JPY": ["boj", "ueda", "yen", "jpy", "japan", "japanese", "tankan"],
-    "AUD": ["rba", "bullock", "aud", "australia", "aussie"],
-    "NZD": ["rbnz", "orr", "nzd", "new zealand", "kiwi"],
-    "CAD": ["boc", "macklem", "cad", "canada", "canadian", "loonie"],
-    "CHF": ["snb", "jordan", "chf", "swiss", "switzerland"],
+    "USD":  ["fed", "fomc", "powell", "nfp", "cpi", "ppi", "gdp", "retail sales",
+             "unemployment", "jobless", "ism", "pce", "durable goods", "jolts",
+             "dollar", "usd", "us ", "u.s.", "american", "treasury"],
+    "EUR":  ["ecb", "lagarde", "euro", "eur", "eurozone", "german", "france",
+             "italy", "spain", "ifo", "zew"],
+    "GBP":  ["boe", "bailey", "sterling", "pound", "gbp", "uk ", "britain", "british"],
+    "JPY":  ["boj", "ueda", "yen", "jpy", "japan", "japanese", "tankan"],
+    "AUD":  ["rba", "bullock", "aud", "australia", "aussie"],
+    "NZD":  ["rbnz", "orr", "nzd", "new zealand", "kiwi"],
+    "CAD":  ["boc", "macklem", "cad", "canada", "canadian", "loonie"],
+    "CHF":  ["snb", "jordan", "chf", "swiss", "switzerland"],
     "GOLD": ["gold", "xau", "xauusd", "bullion"],
     "OIL":  ["crude", "wti", "brent", "opec", "oil"],
 }
@@ -122,7 +102,7 @@ FLAG_MAP = {
 seen_guids        = set()
 seen_econ_events  = set()
 econ_results_sent = set()
-active_source     = None   # tracks which news source is currently working
+active_source     = None
 
 # ─── HELPERS ───────────────────────────────────────────────────────────────────
 def pht_now():
@@ -166,21 +146,112 @@ def broadcast(text: str):
     log.info(f"Broadcast | COT={ok1} MCR={ok2}")
     time.sleep(0.5)
 
+# ─── AI ANALYSIS ───────────────────────────────────────────────────────────────
+AI_SYSTEM_PROMPT = """You are an elite forex and commodities trader with deep expertise in:
+- Smart Money Concepts (SMC): Order Blocks, FVGs, IFVGs, Liquidity sweeps, CISD
+- Multi-timeframe analysis (HTF bias → LTF entry)
+- Macro and fundamental analysis
+- Cross-asset correlations (DXY, Gold, Oil, Risk-on/off)
+
+When given a market news headline, respond with a concise trading analysis in this EXACT format:
+
+📌 BIAS: [1 sentence — what this means for the market]
+💱 IMPACT:
+• [Currency/Asset]: [Bullish/Bearish/Neutral] — [reason]
+• [Currency/Asset]: [Bullish/Bearish/Neutral] — [reason]
+🎯 WATCH: [1-2 key levels or setups to watch]
+⚠️ RISK: [any tail risk or caveat]
+
+Keep it short, sharp, and actionable. Max 5 lines total. No fluff."""
+
+def get_ai_analysis(headline: str) -> str:
+    """Call Claude API to analyze a news headline."""
+    if not ANTHROPIC_API_KEY:
+        return ""
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 300,
+                "system": AI_SYSTEM_PROMPT,
+                "messages": [
+                    {"role": "user", "content": f"Analyze this market news: {headline}"}
+                ],
+            },
+            timeout=20,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            analysis = data["content"][0]["text"].strip()
+            log.info(f"[AI] Analysis generated for: {headline[:60]}")
+            return analysis
+        else:
+            log.warning(f"[AI] API error {r.status_code}: {r.text[:100]}")
+            return ""
+    except Exception as e:
+        log.error(f"[AI] Analysis failed: {e}")
+        return ""
+
+def get_ai_econ_analysis(title: str, currency: str, actual: str,
+                          forecast: str, previous: str, beat_miss: str) -> str:
+    """Call Claude API to analyze an economic data result."""
+    if not ANTHROPIC_API_KEY:
+        return ""
+    try:
+        prompt = (
+            f"Economic data released:\n"
+            f"Event: {title}\n"
+            f"Currency: {currency}\n"
+            f"Actual: {actual} ({beat_miss})\n"
+            f"Forecast: {forecast}\n"
+            f"Previous: {previous}\n\n"
+            f"Give a concise SMC trading analysis."
+        )
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 300,
+                "system": AI_SYSTEM_PROMPT,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=20,
+        )
+        if r.status_code == 200:
+            return r.json()["content"][0]["text"].strip()
+        return ""
+    except Exception as e:
+        log.error(f"[AI] Econ analysis failed: {e}")
+        return ""
+
 # ─── MESSAGE FORMATTERS ────────────────────────────────────────────────────────
-def format_news_flash(title, source_label, url, impact, currencies) -> str:
+def format_news_flash(title, source_label, url, impact, currencies, ai_analysis="") -> str:
     impact_e = {"high": "🔴", "medium": "🟡", "low": "⚪"}.get(impact, "⚪")
     flag_str = " ".join(FLAG_MAP.get(c, "") for c in currencies if c in FLAG_MAP)
     ccy_line = f"\n💱 <b>Affects:</b> {flag_str} {' | '.join(currencies)}" if currencies else ""
+    ai_block = f"\n\n🤖 <b>AI ANALYSIS:</b>\n{ai_analysis}" if ai_analysis else ""
     return (
         f"📰 <b>MARKET NEWS FLASH</b>  <code>[{source_label}]</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 <b>{pht_str()}</b>  {impact_e}\n\n"
         f"<b>{title}</b>"
-        f"{ccy_line}\n\n"
+        f"{ccy_line}"
+        f"{ai_block}\n\n"
         f"🔗 <a href='{url}'>Read more</a>"
     )
 
-def format_econ_result(event: dict) -> str:
+def format_econ_result(event: dict, ai_analysis: str = "") -> str:
     impact_map = {"High": "🔴 HIGH", "Medium": "🟡 MEDIUM", "Low": "⚪ LOW"}
     currency = event.get("currency", "")
     flag     = FLAG_MAP.get(currency, "🌐")
@@ -194,8 +265,8 @@ def format_econ_result(event: dict) -> str:
     try:
         av = float(re.sub(r"[^0-9.\-]", "", actual))
         fv = float(re.sub(r"[^0-9.\-]", "", forecast))
-        title_l = event.get("title", "").lower()
-        inverted = any(w in title_l for w in ["unemployment", "jobless", "claims", "deficit"])
+        inverted = any(w in event.get("title","").lower()
+                       for w in ["unemployment", "jobless", "claims", "deficit"])
         if av > fv:
             beat_miss = "✅ BEAT"
             hint = f"\n\n💹 <b>{currency} BULLISH</b>" if not inverted else f"\n\n📉 <b>{currency} BEARISH</b>"
@@ -206,6 +277,8 @@ def format_econ_result(event: dict) -> str:
             beat_miss = "➖ IN-LINE"
     except Exception:
         pass
+
+    ai_block = f"\n\n🤖 <b>AI ANALYSIS:</b>\n{ai_analysis}" if ai_analysis else hint
 
     return (
         f"📊 <b>ECONOMIC DATA RESULT</b>\n"
@@ -218,7 +291,7 @@ def format_econ_result(event: dict) -> str:
         f"Forecast: {forecast:>10}\n"
         f"Previous: {previous:>10}"
         f"</code>"
-        f"{hint}"
+        f"{ai_block}"
     )
 
 def format_econ_warning(evt: dict, evt_pht: str) -> str:
@@ -237,9 +310,8 @@ def format_econ_warning(evt: dict, evt_pht: str) -> str:
         f"⚠️ Expect volatility — manage your risk!"
     )
 
-# ─── RSS FETCHER WITH FALLBACK ─────────────────────────────────────────────────
+# ─── RSS FETCHER ───────────────────────────────────────────────────────────────
 def fetch_rss(source: dict) -> list:
-    """Fetch one RSS source. Returns list of new items or empty list."""
     try:
         r = requests.get(source["url"], headers=HEADERS, timeout=15)
         if r.status_code != 200:
@@ -269,7 +341,6 @@ def fetch_rss(source: dict) -> list:
         return []
 
 def seed_existing_guids():
-    """On startup, load existing GUIDs silently to avoid flood."""
     log.info("  Seeding existing GUIDs...")
     for source in NEWS_SOURCES:
         items = fetch_rss(source)
@@ -282,7 +353,7 @@ def seed_existing_guids():
 # ─── NEWS LOOP ─────────────────────────────────────────────────────────────────
 def news_loop():
     global active_source
-    log.info("▶ News watcher started (multi-source with fallback)")
+    log.info("▶ News watcher started (multi-source with fallback + AI analysis)")
     seed_existing_guids()
 
     while True:
@@ -293,7 +364,6 @@ def news_loop():
                 if not items:
                     continue
 
-                # This source is working
                 if active_source != source["name"]:
                     log.info(f"  ✅ Active source switched to: {source['name']}")
                     active_source = source["name"]
@@ -303,19 +373,26 @@ def news_loop():
                     seen_guids.add(item["guid"])
                     impact     = detect_impact(item["title"], item["tags"])
                     currencies = detect_currencies(item["title"])
+
+                    # Only call AI for medium/high impact news to save API calls
+                    ai_analysis = ""
+                    if impact in ["high", "medium"]:
+                        ai_analysis = get_ai_analysis(item["title"])
+
                     msg = format_news_flash(
                         title=item["title"],
                         source_label=item["label"],
                         url=item["url"],
                         impact=impact,
                         currencies=currencies,
+                        ai_analysis=ai_analysis,
                     )
                     log.info(f"[{item['label']}] NEW: {item['title'][:80]}")
                     broadcast(msg)
                     time.sleep(1)
 
                 found_any = True
-                break  # Use only the first working source per cycle
+                break
 
             if not found_any:
                 log.warning("⚠️ All RSS sources unavailable this cycle — will retry")
@@ -327,16 +404,12 @@ def news_loop():
 
 # ─── ECONOMIC CALENDAR LOOP ────────────────────────────────────────────────────
 def fetch_calendar() -> list:
-    """Try all calendar sources, return first successful result."""
     for url in CALENDAR_SOURCES:
         try:
             r = requests.get(url, headers={**HEADERS, "Accept": "application/json"}, timeout=15)
             if r.status_code == 200:
-                data = r.json()
-                log.debug(f"Calendar fetched from {url} — {len(data)} events")
-                return data
-            else:
-                log.warning(f"Calendar HTTP {r.status_code} from {url}")
+                return r.json()
+            log.warning(f"Calendar HTTP {r.status_code} from {url}")
         except Exception as e:
             log.debug(f"Calendar error [{url}]: {e}")
     return []
@@ -364,19 +437,38 @@ def econ_loop():
                 impact = evt.get("impact", "Low")
                 actual = evt.get("actual", "")
 
-                # ── Broadcast result when actual is posted ──
+                # ── Result broadcast ──
                 if actual and key not in econ_results_sent:
                     econ_results_sent.add(key)
-                    evt_pht = utc_to_pht(evt.get("date", ""), evt.get("time", ""))
-                    msg = format_econ_result({
-                        **evt,
-                        "time": evt_pht,
-                    })
+                    evt_pht  = utc_to_pht(evt.get("date", ""), evt.get("time", ""))
+                    forecast = evt.get("forecast", "—")
+                    previous = evt.get("previous", "—")
+                    currency = evt.get("currency", "")
+
+                    # Determine beat/miss for AI prompt
+                    beat_miss = ""
+                    try:
+                        av = float(re.sub(r"[^0-9.\-]", "", actual))
+                        fv = float(re.sub(r"[^0-9.\-]", "", forecast))
+                        beat_miss = "BEAT" if av > fv else ("MISS" if av < fv else "IN-LINE")
+                    except Exception:
+                        pass
+
+                    ai_analysis = get_ai_econ_analysis(
+                        title=evt.get("title", ""),
+                        currency=currency,
+                        actual=actual,
+                        forecast=forecast,
+                        previous=previous,
+                        beat_miss=beat_miss,
+                    )
+
+                    msg = format_econ_result({**evt, "time": evt_pht}, ai_analysis)
                     log.info(f"[ECON RESULT] {evt.get('title')} | Actual={actual}")
                     broadcast(msg)
                     continue
 
-                # ── 30-min warning for high-impact events ──
+                # ── 30-min warning ──
                 if key in seen_econ_events or impact != "High":
                     continue
                 try:
@@ -402,9 +494,10 @@ def econ_loop():
 
 # ─── STARTUP BANNER ────────────────────────────────────────────────────────────
 def send_startup_banner():
+    ai_status = "✅ Enabled" if ANTHROPIC_API_KEY else "❌ Disabled (no API key)"
     now = pht_now()
     msg = (
-        f"🚀 <b>FJ NEWS BOT v2.0 ONLINE</b>\n"
+        f"🚀 <b>FJ NEWS BOT v3.0 ONLINE</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 Started: <b>{now.strftime('%Y-%m-%d %H:%M PHT')}</b>\n\n"
         f"📡 <b>News Sources (auto-fallback):</b>\n"
@@ -412,19 +505,19 @@ def send_startup_banner():
         f"  2. ForexLive\n"
         f"  3. FXStreet\n"
         f"  4. DailyFX\n\n"
-        f"📅 <b>Economic Calendar:</b>\n"
-        f"  • ForexFactory (this week + next week)\n\n"
+        f"🤖 <b>AI Analysis:</b> {ai_status}\n\n"
+        f"📅 <b>Economic Calendar:</b> ForexFactory\n\n"
         f"🔔 <b>You will receive:</b>\n"
-        f"  • Live news flashes as they break\n"
+        f"  • 📰 Live news + AI trading analysis\n"
         f"  • ⏰ 30-min warnings before high-impact events\n"
-        f"  • 📊 Actual vs Forecast results on release"
+        f"  • 📊 Data results with AI bias analysis"
     )
     broadcast(msg)
 
 # ─── ENTRY POINT ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     log.info("═" * 60)
-    log.info("  FJ NEWS BOT v2.0  |  Starting up...")
+    log.info("  FJ NEWS BOT v3.0  |  Starting up...")
     log.info("═" * 60)
 
     MAX_RUNTIME_MINUTES = int(os.environ.get("MAX_RUNTIME_MINUTES", 270))
@@ -433,8 +526,8 @@ if __name__ == "__main__":
 
     send_startup_banner()
 
-    t1 = Thread(target=news_loop,  daemon=True, name="NEWS")
-    t2 = Thread(target=econ_loop,  daemon=True, name="ECON")
+    t1 = Thread(target=news_loop, daemon=True, name="NEWS")
+    t2 = Thread(target=econ_loop, daemon=True, name="ECON")
     t1.start()
     t2.start()
 
@@ -443,7 +536,7 @@ if __name__ == "__main__":
         while True:
             time.sleep(60)
             if time.time() >= deadline:
-                log.info(f"⏰ Runtime limit reached. Exiting cleanly.")
+                log.info("⏰ Runtime limit reached. Exiting cleanly.")
                 break
     except KeyboardInterrupt:
         log.info("Shutdown requested. Bye!")
