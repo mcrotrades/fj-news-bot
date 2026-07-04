@@ -12,7 +12,7 @@ BOT_TOKEN = "8781053968:AAE2f3-DtO7Cl6r41lGkZ97QqKPlu6y2GjE"
 # Channel IDs (use negative numbers for channels, e.g. -1001234567890)
 # To get channel ID: forward a message from your channel to @userinfobot
 CHANNEL_COT = "@CircleOfTraders"    # or use numeric ID like -1001234567890
-CHANNEL_MCR = "@MCROTRADES"        # or use numeric ID
+CHANNEL_MCR = "TELEGRAM_CHAT_ID",   "-1003786027315"
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 # How often to check Financial Juice RSS (seconds)
