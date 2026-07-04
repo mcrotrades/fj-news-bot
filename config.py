@@ -10,9 +10,10 @@ BOT_TOKEN   = os.environ.get("BOT_TOKEN",   "8745138732:AAEkC_sE9W4TCr7Mh7ieW6Uv
 CHANNEL_COT = os.environ.get("CHANNEL_COT", "-1004370012411")
 CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
 
-# ─── ANTHROPIC AI ──────────────────────────────────────────────────────────────
-# Get your API key from: https://console.anthropic.com
-MCROTrades_AI_API_KEY = os.environ.get("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", "")
+# ─── GROQ AI (FREE) ────────────────────────────────────────────────────────────
+# Get your FREE API key from: https://console.groq.com
+# Sign up → API Keys → Create API Key → starts with gsk_...
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))

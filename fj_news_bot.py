@@ -26,7 +26,7 @@ from config import (
     CHANNEL_MCR,
     FJ_POLL_INTERVAL,
     ECON_POLL_INTERVAL,
-    MCROTrades_AI_API_KEY,
+    GROQ_API_KEY,
 )
 
 # ─── LOGGING ───────────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ def broadcast(text: str):
     log.info(f"Broadcast | COT={ok1} MCR={ok2}")
     time.sleep(0.5)
 
-# ─── AI ANALYSIS ───────────────────────────────────────────────────────────────
+# ─── AI ANALYSIS (Groq — Free) ─────────────────────────────────────────────────
 AI_SYSTEM_PROMPT = """You are an elite forex and commodities trader with deep expertise in:
 - Smart Money Concepts (SMC): Order Blocks, FVGs, IFVGs, Liquidity sweeps, CISD
 - Multi-timeframe analysis (HTF bias → LTF entry)
@@ -164,76 +164,57 @@ When given a market news headline, respond with a concise trading analysis in th
 
 Keep it short, sharp, and actionable. Max 5 lines total. No fluff."""
 
-def get_ai_analysis(headline: str) -> str:
-    """Call Claude API to analyze a news headline."""
-    if not ANTHROPIC_API_KEY:
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL   = "llama3-8b-8192"  # Free, fast, capable
+
+def call_groq(prompt: str) -> str:
+    """Call Groq API. Returns analysis text or empty string on failure."""
+    if not GROQ_API_KEY:
         return ""
     try:
         r = requests.post(
-            "https://api.anthropic.com/v1/messages",
+            GROQ_API_URL,
             headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
             },
             json={
-                "model": "claude-haiku-4-5-20251001",
+                "model": GROQ_MODEL,
                 "max_tokens": 300,
-                "system": AI_SYSTEM_PROMPT,
+                "temperature": 0.3,
                 "messages": [
-                    {"role": "user", "content": f"Analyze this market news: {headline}"}
+                    {"role": "system", "content": AI_SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt},
                 ],
             },
             timeout=20,
         )
         if r.status_code == 200:
-            data = r.json()
-            analysis = data["content"][0]["text"].strip()
-            log.info(f"[AI] Analysis generated for: {headline[:60]}")
-            return analysis
+            text = r.json()["choices"][0]["message"]["content"].strip()
+            log.info(f"[AI/Groq] Analysis done")
+            return text
         else:
-            log.warning(f"[AI] API error {r.status_code}: {r.text[:100]}")
+            log.warning(f"[AI/Groq] Error {r.status_code}: {r.text[:100]}")
             return ""
     except Exception as e:
-        log.error(f"[AI] Analysis failed: {e}")
+        log.error(f"[AI/Groq] Failed: {e}")
         return ""
+
+def get_ai_analysis(headline: str) -> str:
+    return call_groq(f"Analyze this market news for trading: {headline}")
 
 def get_ai_econ_analysis(title: str, currency: str, actual: str,
                           forecast: str, previous: str, beat_miss: str) -> str:
-    """Call Claude API to analyze an economic data result."""
-    if not ANTHROPIC_API_KEY:
-        return ""
-    try:
-        prompt = (
-            f"Economic data released:\n"
-            f"Event: {title}\n"
-            f"Currency: {currency}\n"
-            f"Actual: {actual} ({beat_miss})\n"
-            f"Forecast: {forecast}\n"
-            f"Previous: {previous}\n\n"
-            f"Give a concise SMC trading analysis."
-        )
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 300,
-                "system": AI_SYSTEM_PROMPT,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=20,
-        )
-        if r.status_code == 200:
-            return r.json()["content"][0]["text"].strip()
-        return ""
-    except Exception as e:
-        log.error(f"[AI] Econ analysis failed: {e}")
-        return ""
+    prompt = (
+        f"Economic data released:\n"
+        f"Event: {title}\n"
+        f"Currency: {currency}\n"
+        f"Actual: {actual} ({beat_miss})\n"
+        f"Forecast: {forecast}\n"
+        f"Previous: {previous}\n\n"
+        f"Give a concise SMC trading analysis."
+    )
+    return call_groq(prompt)
 
 # ─── MESSAGE FORMATTERS ────────────────────────────────────────────────────────
 def format_news_flash(title, source_label, url, impact, currencies, ai_analysis="") -> str:
@@ -494,7 +475,7 @@ def econ_loop():
 
 # ─── STARTUP BANNER ────────────────────────────────────────────────────────────
 def send_startup_banner():
-    ai_status = "✅ Enabled" if ANTHROPIC_API_KEY else "❌ Disabled (no API key)"
+    ai_status = "✅ Enabled (Groq/Llama3 — Free)" if GROQ_API_KEY else "❌ Disabled (add GROQ_API_KEY secret)"
     now = pht_now()
     msg = (
         f"🚀 <b>FJ NEWS BOT v3.0 ONLINE</b>\n"
