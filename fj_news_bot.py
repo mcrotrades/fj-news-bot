@@ -26,7 +26,7 @@ from config import (
     CHANNEL_MCR,
     FJ_POLL_INTERVAL,
     ECON_POLL_INTERVAL,
-    ANTHROPIC_API_KEY,
+    MCROTrades_AI_API_KEY,
 )
 
 # ─── LOGGING ───────────────────────────────────────────────────────────────────
