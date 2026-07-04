@@ -1,43 +1,26 @@
 """
 ═══════════════════════════════════════
   FJ NEWS BOT — Configuration
-  Edit these values before running!
 ═══════════════════════════════════════
 """
+import os
 
 # ─── TELEGRAM ──────────────────────────────────────────────────────────────────
-# Get your bot token from @BotFather on Telegram
-BOT_TOKEN = "8745138732:AAEkC_sE9W4TCr7Mh7ieW6UvhXDKmHHEbM8"
-
-# Channel IDs (use negative numbers for channels, e.g. -1001234567890)
-# To get channel ID: forward a message from your channel to @userinfobot
-CHANNEL_COT = "@CircleOfTraders"    # or use numeric ID like -1001234567890
-CHANNEL_MCR = "TELEGRAM_CHAT_ID",   "-1004370012411"
+BOT_TOKEN   = os.environ.get("BOT_TOKEN",   "8745138732:AAEkC_sE9W4TCr7Mh7ieW6UvhXDKmHHEbM8")
+CHANNEL_COT = os.environ.get("CHANNEL_COT", "-1004370012411")
+CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
-# How often to check Financial Juice RSS (seconds)
-# Recommended: 90–120 seconds (too fast may get rate-limited)
-FJ_POLL_INTERVAL = 90
-
-# How often to check the economic calendar for new results (seconds)
-# Recommended: 60–120 seconds
-ECON_POLL_INTERVAL = 60
+FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))
+ECON_POLL_INTERVAL = int(os.environ.get("ECON_POLL_INTERVAL", 60))
 
 # ─── FILTERS ──────────────────────────────────────────────────────────────────
-# Which FJ categories to monitor (True = enabled)
 FJ_CATEGORIES = {
-    "forex":    True,   # Forex-specific news
-    "macro":    True,   # Macro / central bank news
-    "market":   True,   # Market-moving news
-    "all":      False,  # ALL news (very high volume — enable only if needed)
+    "forex":  True,
+    "macro":  True,
+    "market": True,
+    "all":    False,
 }
 
-# Minimum impact level for FJ news to be broadcast
-# Options: "low", "medium", "high"
-# "high" = only central bank / major data news
-# "low"  = everything (noisy)
-FJ_MIN_IMPACT = "low"   # Start with "low" and raise if too noisy
-
-# Only broadcast economic events with these impact levels
-# Options: ["High"], ["High", "Medium"]
+FJ_MIN_IMPACT      = "low"
 ECON_IMPACT_FILTER = ["High", "Medium"]
