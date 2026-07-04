@@ -384,16 +384,71 @@ def news_loop():
         time.sleep(FJ_POLL_INTERVAL)
 
 # ─── ECONOMIC CALENDAR LOOP ────────────────────────────────────────────────────
+# Track consecutive calendar failures to apply backoff
+_calendar_fail_count = 0
+
 def fetch_calendar() -> list:
-    for url in CALENDAR_SOURCES:
+    global _calendar_fail_count
+
+    # TradingEconomics guest key — free, no signup needed
+    te_url = "https://api.tradingeconomics.com/calendar?c=guest:guest&f=json"
+
+    all_sources = CALENDAR_SOURCES + [te_url]
+
+    for url in all_sources:
         try:
-            r = requests.get(url, headers={**HEADERS, "Accept": "application/json"}, timeout=15)
+            r = requests.get(
+                url,
+                headers={**HEADERS, "Accept": "application/json"},
+                timeout=15
+            )
             if r.status_code == 200:
-                return r.json()
-            log.warning(f"Calendar HTTP {r.status_code} from {url}")
+                data = r.json()
+                if data:
+                    _calendar_fail_count = 0
+                    log.debug(f"Calendar OK from {url} — {len(data)} events")
+                    # Normalize TradingEconomics format if needed
+                    if "tradingeconomics" in url:
+                        return _normalize_te_calendar(data)
+                    return data
+            elif r.status_code == 429:
+                log.warning(f"Calendar rate-limited (429) from {url} — trying next source")
+            else:
+                log.warning(f"Calendar HTTP {r.status_code} from {url}")
         except Exception as e:
             log.debug(f"Calendar error [{url}]: {e}")
+
+    _calendar_fail_count += 1
+    if _calendar_fail_count <= 3:
+        log.warning(f"⚠️ All calendar sources unavailable (attempt {_calendar_fail_count})")
     return []
+
+def _normalize_te_calendar(data: list) -> list:
+    """Convert TradingEconomics format to ForexFactory-compatible format."""
+    result = []
+    for evt in data:
+        try:
+            # TE date format: "2026-07-04T08:30:00"
+            dt_str = evt.get("Date", "")
+            dt = datetime.fromisoformat(dt_str.replace("Z",""))
+            date_fmt = dt.strftime("%m-%d-%Y")
+            time_fmt = dt.strftime("%I:%M%p").lstrip("0")
+            importance = evt.get("Importance", 1)
+            impact = "High" if importance == 3 else ("Medium" if importance == 2 else "Low")
+            result.append({
+                "title":    evt.get("Event", ""),
+                "country":  evt.get("Country", ""),
+                "currency": evt.get("Currency", "").upper(),
+                "date":     date_fmt,
+                "time":     time_fmt,
+                "impact":   impact,
+                "actual":   str(evt.get("Actual", "")) if evt.get("Actual") is not None else "",
+                "forecast": str(evt.get("Forecast", "")) if evt.get("Forecast") is not None else "—",
+                "previous": str(evt.get("Previous", "")) if evt.get("Previous") is not None else "—",
+            })
+        except Exception:
+            continue
+    return result
 
 def utc_to_pht(date_str: str, time_str: str) -> str:
     try:

@@ -13,11 +13,11 @@ CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
 # ─── GROQ AI (FREE) ────────────────────────────────────────────────────────────
 # Get your FREE API key from: https://console.groq.com
 # Sign up → API Keys → Create API Key → starts with gsk_...
-GROQ_API_KEY = os.environ.get("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")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))
-ECON_POLL_INTERVAL = int(os.environ.get("ECON_POLL_INTERVAL", 60))
+ECON_POLL_INTERVAL = int(os.environ.get("ECON_POLL_INTERVAL", 300))
 
 # ─── FILTERS ──────────────────────────────────────────────────────────────────
 FJ_CATEGORIES = {
