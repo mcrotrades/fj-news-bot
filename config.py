@@ -12,7 +12,7 @@ CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
 
 # ─── ANTHROPIC AI ──────────────────────────────────────────────────────────────
 # Get your API key from: https://console.anthropic.com
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+MCROTrades_AI_API_KEY = os.environ.get("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", "")
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))
