@@ -322,14 +322,23 @@ def fetch_rss(source: dict) -> list:
         return []
 
 def seed_existing_guids():
-    log.info("  Seeding existing GUIDs...")
+    """
+    Seed old GUIDs to prevent flood — but keep the latest 5 headlines
+    UNSEEN so they get broadcast immediately on startup.
+    This ensures the channel always gets fresh news on bot start.
+    """
+    log.info("  Seeding existing GUIDs (keeping latest 5 fresh)...")
     for source in NEWS_SOURCES:
         items = fetch_rss(source)
-        for item in items:
+        if not items:
+            continue
+        # Seed all EXCEPT the 5 most recent ones
+        to_seed = items[5:]  # skip first 5 (newest), seed the rest
+        for item in to_seed:
             seen_guids.add(item["guid"])
-        if items:
-            log.info(f"  [{source['name']}] seeded {len(items)} GUIDs")
-    log.info(f"  Total seeded: {len(seen_guids)} GUIDs. Live monitoring starts now.")
+        log.info(f"  [{source['name']}] seeded {len(to_seed)} old GUIDs, keeping {min(5,len(items))} fresh")
+        break  # Only need to seed from first working source
+    log.info(f"  Total seeded: {len(seen_guids)} GUIDs. Latest headlines will broadcast now.")
 
 # ─── NEWS LOOP ─────────────────────────────────────────────────────────────────
 def news_loop():
@@ -546,9 +555,148 @@ def send_startup_banner():
         f"🔔 <b>You will receive:</b>\n"
         f"  • 📰 Live news + AI trading analysis\n"
         f"  • ⏰ 30-min warnings before high-impact events\n"
-        f"  • 📊 Data results with AI bias analysis"
+        f"  • 📊 Data results with AI bias analysis\n"
+        f"  • 📅 Weekly digest every Monday 08:00 PHT"
     )
     broadcast(msg)
+
+
+# ─── WEEKLY DIGEST ─────────────────────────────────────────────────────────────
+weekly_digest_sent = False
+
+def build_weekly_digest() -> str:
+    """
+    Build a weekly digest using AI summary of last week's major events.
+    Pulls from ForexFactory previous week calendar.
+    """
+    log.info("[DIGEST] Building weekly digest...")
+
+    # Fetch last week's calendar
+    lastweek_url = "https://nfs.faireconomy.media/ff_calendar_lastweek.json"
+    events = []
+    try:
+        r = requests.get(lastweek_url, headers={**HEADERS, "Accept": "application/json"}, timeout=15)
+        if r.status_code == 200:
+            events = r.json()
+    except Exception as e:
+        log.warning(f"[DIGEST] Could not fetch last week calendar: {e}")
+
+    # Filter only High impact events that have actual data
+    high_events = [
+        e for e in events
+        if e.get("impact") == "High" and e.get("actual")
+    ]
+
+    if not high_events:
+        log.warning("[DIGEST] No high-impact events found for last week")
+        return ""
+
+    # Build summary text for AI
+    events_text = ""
+    for e in high_events[:15]:  # cap at 15 events
+        actual   = e.get("actual", "—")
+        forecast = e.get("forecast", "—")
+        previous = e.get("previous", "—")
+        currency = e.get("currency", "")
+        title    = e.get("title", "")
+        try:
+            av = float(re.sub(r"[^0-9.\-]", "", actual))
+            fv = float(re.sub(r"[^0-9.\-]", "", forecast))
+            result = "BEAT" if av > fv else ("MISS" if av < fv else "IN-LINE")
+        except Exception:
+            result = ""
+        events_text += f"- {currency} {title}: Actual={actual} Forecast={forecast} Previous={previous} {result}\n"
+
+    # Get AI to summarize
+    ai_summary = ""
+    if GROQ_API_KEY and events_text:
+        try:
+            prompt = (
+                f"Here are last week's major economic data releases:\n\n"
+                f"{events_text}\n"
+                f"Write a concise weekly market recap for forex traders. "
+                f"Cover: overall market theme, strongest/weakest currencies, "
+                f"key surprises, and what to watch this week. "
+                f"Format with clear sections. Max 200 words. No fluff."
+            )
+            r = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "llama3-8b-8192",
+                    "max_tokens": 400,
+                    "temperature": 0.3,
+                    "messages": [
+                        {"role": "system", "content": "You are an elite forex market analyst writing a weekly recap for traders."},
+                        {"role": "user",   "content": prompt},
+                    ],
+                },
+                timeout=25,
+            )
+            if r.status_code == 200:
+                ai_summary = r.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            log.error(f"[DIGEST] AI summary failed: {e}")
+
+    # Build the event table
+    now_pht = pht_now()
+    week_start = (now_pht - timedelta(days=now_pht.weekday() + 7)).strftime("%b %d")
+    week_end   = (now_pht - timedelta(days=now_pht.weekday() + 1)).strftime("%b %d")
+
+    lines = []
+    for e in high_events[:10]:
+        currency = e.get("currency", "")
+        title    = e.get("title", "")[:30]
+        actual   = e.get("actual", "—")
+        forecast = e.get("forecast", "—")
+        flag     = FLAG_MAP.get(currency, "🌐")
+        try:
+            av = float(re.sub(r"[^0-9.\-]", "", actual))
+            fv = float(re.sub(r"[^0-9.\-]", "", forecast))
+            icon = "✅" if av > fv else ("❌" if av < fv else "➖")
+        except Exception:
+            icon = "•"
+        lines.append(f"{icon} {flag} {title}: <b>{actual}</b> vs {forecast}")
+
+    events_block = "\n".join(lines)
+    ai_block = f"\n\n🤖 <b>AI MARKET RECAP:</b>\n{ai_summary}" if ai_summary else ""
+
+    msg = (
+        f"📅 <b>WEEKLY MARKET DIGEST</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🗓 Week of <b>{week_start} – {week_end}</b>\n\n"
+        f"<b>🔴 HIGH IMPACT RESULTS:</b>\n"
+        f"{events_block}"
+        f"{ai_block}\n\n"
+        f"📊 New week starts now — stay sharp!"
+    )
+    return msg
+
+def weekly_digest_loop():
+    """Posts weekly digest every Monday at 08:00 PHT."""
+    global weekly_digest_sent
+    log.info("▶ Weekly digest watcher started")
+    while True:
+        try:
+            now = pht_now()
+            # Monday = weekday 0, at 08:00 PHT
+            is_monday_morning = (now.weekday() == 0 and now.hour == 8 and now.minute < 5)
+            if is_monday_morning and not weekly_digest_sent:
+                log.info("[DIGEST] Monday 08:00 PHT — sending weekly digest")
+                msg = build_weekly_digest()
+                if msg:
+                    broadcast(msg)
+                    weekly_digest_sent = True
+                    log.info("[DIGEST] Weekly digest sent!")
+            # Reset flag on Tuesday so it can send again next Monday
+            if now.weekday() == 1:
+                weekly_digest_sent = False
+        except Exception as e:
+            log.error(f"weekly_digest_loop error: {e}")
+        time.sleep(300)  # check every 5 minutes
 
 # ─── ENTRY POINT ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -562,10 +710,12 @@ if __name__ == "__main__":
 
     send_startup_banner()
 
-    t1 = Thread(target=news_loop, daemon=True, name="NEWS")
-    t2 = Thread(target=econ_loop, daemon=True, name="ECON")
+    t1 = Thread(target=news_loop,          daemon=True, name="NEWS")
+    t2 = Thread(target=econ_loop,          daemon=True, name="ECON")
+    t3 = Thread(target=weekly_digest_loop, daemon=True, name="DIGEST")
     t1.start()
     t2.start()
+    t3.start()
 
     log.info("Both watchers running. Press Ctrl+C to stop.")
     try:
