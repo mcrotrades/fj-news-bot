@@ -27,6 +27,7 @@ from config import (
     FJ_POLL_INTERVAL,
     ECON_POLL_INTERVAL,
     GROQ_API_KEY,
+    GEMINI_API_KEY,
 )
 
 # ─── LOGGING ───────────────────────────────────────────────────────────────────
@@ -539,7 +540,12 @@ def econ_loop():
 
 # ─── STARTUP BANNER ────────────────────────────────────────────────────────────
 def send_startup_banner():
-    ai_status = "✅ Enabled (Groq/Llama3 — Free)" if GROQ_API_KEY else "❌ Disabled (add GROQ_API_KEY secret)"
+    if GROQ_API_KEY:
+        ai_status = "✅ Groq/Llama3 (Active)"
+    elif GEMINI_API_KEY:
+        ai_status = "✅ Google Gemini (Active)"
+    else:
+        ai_status = "❌ Disabled — add GROQ_API_KEY or GEMINI_API_KEY secret"
     now = pht_now()
     msg = (
         f"🚀 <b>FJ NEWS BOT v3.0 ONLINE</b>\n"

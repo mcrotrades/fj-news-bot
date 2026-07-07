@@ -10,10 +10,12 @@ BOT_TOKEN   = os.environ.get("BOT_TOKEN",   "8745138732:AAEkC_sE9W4TCr7Mh7ieW6Uv
 CHANNEL_COT = os.environ.get("CHANNEL_COT", "-1004370012411")
 CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
 
-# ─── GROQ AI (FREE) ────────────────────────────────────────────────────────────
-# Get your FREE API key from: https://console.groq.com
-# Sign up → API Keys → Create API Key → starts with gsk_...
-GROQ_API_KEY = os.environ.get("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", "")
+# ─── AI PROVIDERS (add whichever you have — bot uses first available) ──────────
+# Option 1: Groq (free) → console.groq.com → starts with gsk_...
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+
+# Option 2: Google Gemini (free) → aistudio.google.com → starts with AIza...
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))
