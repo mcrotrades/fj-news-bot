@@ -170,29 +170,38 @@ def call_gemini(prompt: str) -> str:
     if not GEMINI_API_KEY:
         return ""
     try:
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-        )
-        r = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
-            json={
-                "contents": [{
-                    "parts": [{"text": AI_SYSTEM_PROMPT + "\n\n" + prompt}]
-                }],
-                "generationConfig": {
-                    "maxOutputTokens": 300,
-                    "temperature": 0.3,
-                }
-            },
-            timeout=20,
-        )
-        if r.status_code == 200:
-            text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            log.info("[AI/Gemini] Analysis done")
-            return text
-        log.warning(f"[AI/Gemini] Error {r.status_code}: {r.text[:150]}")
+        # Try both model versions for compatibility
+        models = ["gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"]
+        full_prompt = AI_SYSTEM_PROMPT + "\n\n" + prompt
+        for model in models:
+            url = (
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model}:generateContent?key={GEMINI_API_KEY}"
+            )
+            r = requests.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{
+                        "parts": [{"text": full_prompt}]
+                    }],
+                    "generationConfig": {
+                        "maxOutputTokens": 300,
+                        "temperature": 0.3,
+                    }
+                },
+                timeout=20,
+            )
+            if r.status_code == 200:
+                text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                log.info(f"[AI/Gemini] Analysis done via {model}")
+                return text
+            elif r.status_code == 404:
+                log.debug(f"[AI/Gemini] Model {model} not found, trying next...")
+                continue
+            else:
+                log.warning(f"[AI/Gemini] Error {r.status_code}: {r.text[:150]}")
+                break
         return ""
     except Exception as e:
         log.error(f"[AI/Gemini] Failed: {e}")
