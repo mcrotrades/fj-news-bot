@@ -147,7 +147,7 @@ def broadcast(text: str):
     log.info(f"Broadcast | COT={ok1} MCR={ok2}")
     time.sleep(0.5)
 
-# ─── AI ANALYSIS (Groq — Free) ─────────────────────────────────────────────────
+# ─── AI ANALYSIS (Gemini primary, Groq fallback) ──────────────────────────────
 AI_SYSTEM_PROMPT = """You are an elite forex and commodities trader with deep expertise in:
 - Smart Money Concepts (SMC): Order Blocks, FVGs, IFVGs, Liquidity sweeps, CISD
 - Multi-timeframe analysis (HTF bias → LTF entry)
@@ -165,22 +165,52 @@ When given a market news headline, respond with a concise trading analysis in th
 
 Keep it short, sharp, and actionable. Max 5 lines total. No fluff."""
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = "llama3-8b-8192"  # Free, fast, capable
+def call_gemini(prompt: str) -> str:
+    """Call Google Gemini API (free). Returns analysis or empty string."""
+    if not GEMINI_API_KEY:
+        return ""
+    try:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        )
+        r = requests.post(
+            url,
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{
+                    "parts": [{"text": AI_SYSTEM_PROMPT + "\n\n" + prompt}]
+                }],
+                "generationConfig": {
+                    "maxOutputTokens": 300,
+                    "temperature": 0.3,
+                }
+            },
+            timeout=20,
+        )
+        if r.status_code == 200:
+            text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            log.info("[AI/Gemini] Analysis done")
+            return text
+        log.warning(f"[AI/Gemini] Error {r.status_code}: {r.text[:150]}")
+        return ""
+    except Exception as e:
+        log.error(f"[AI/Gemini] Failed: {e}")
+        return ""
 
 def call_groq(prompt: str) -> str:
-    """Call Groq API. Returns analysis text or empty string on failure."""
+    """Call Groq API (free fallback). Returns analysis or empty string."""
     if not GROQ_API_KEY:
         return ""
     try:
         r = requests.post(
-            GROQ_API_URL,
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": GROQ_MODEL,
+                "model": "llama3-8b-8192",
                 "max_tokens": 300,
                 "temperature": 0.3,
                 "messages": [
@@ -192,20 +222,30 @@ def call_groq(prompt: str) -> str:
         )
         if r.status_code == 200:
             text = r.json()["choices"][0]["message"]["content"].strip()
-            log.info(f"[AI/Groq] Analysis done")
+            log.info("[AI/Groq] Analysis done")
             return text
-        else:
-            log.warning(f"[AI/Groq] Error {r.status_code}: {r.text[:100]}")
-            return ""
+        log.warning(f"[AI/Groq] Error {r.status_code}: {r.text[:100]}")
+        return ""
     except Exception as e:
         log.error(f"[AI/Groq] Failed: {e}")
         return ""
 
+def call_ai(prompt: str) -> str:
+    """Try Gemini first, fall back to Groq."""
+    result = call_gemini(prompt)
+    if result:
+        return result
+    return call_groq(prompt)
+
 def get_ai_analysis(headline: str) -> str:
-    return call_groq(f"Analyze this market news for trading: {headline}")
+    if not GEMINI_API_KEY and not GROQ_API_KEY:
+        return ""
+    return call_ai(f"Analyze this market news for trading: {headline}")
 
 def get_ai_econ_analysis(title: str, currency: str, actual: str,
                           forecast: str, previous: str, beat_miss: str) -> str:
+    if not GEMINI_API_KEY and not GROQ_API_KEY:
+        return ""
     prompt = (
         f"Economic data released:\n"
         f"Event: {title}\n"
@@ -215,7 +255,7 @@ def get_ai_econ_analysis(title: str, currency: str, actual: str,
         f"Previous: {previous}\n\n"
         f"Give a concise SMC trading analysis."
     )
-    return call_groq(prompt)
+    return call_ai(prompt)
 
 # ─── MESSAGE FORMATTERS ────────────────────────────────────────────────────────
 def format_news_flash(title, source_label, url, impact, currencies, ai_analysis="") -> str:
