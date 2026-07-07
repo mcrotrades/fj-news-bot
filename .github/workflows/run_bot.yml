@@ -35,10 +35,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run FJ News Bot
+     - name: Run FJ News Bot
         env:
-          BOT_TOKEN:           ${{ secrets.BOT_TOKEN }}
-          CHANNEL_COT:         ${{ secrets.CHANNEL_COT }}
-          CHANNEL_MCR:         ${{ secrets.CHANNEL_MCR }}
-          MAX_RUNTIME_MINUTES: "270"
+          BOT_TOKEN:            ${{ secrets.BOT_TOKEN }}
+          CHANNEL_COT:          ${{ secrets.CHANNEL_COT }}
+          CHANNEL_MCR:          ${{ secrets.CHANNEL_MCR }}
+          GROQ_API_KEY:         ${{ secrets.GROQ_API_KEY }}
+          MAX_RUNTIME_MINUTES:  "270"
         run: python fj_news_bot.py
