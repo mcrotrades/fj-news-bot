@@ -14,7 +14,7 @@ CHANNEL_MCR = os.environ.get("CHANNEL_MCR", "-1004370012411")
 # Get free key at: aistudio.google.com → Get API Key → Create API key
 # Key starts with AIza...
 GROQ_API_KEY   = ""                                    # disabled
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")  # active
+GEMINI_API_KEY = os.environ.get(AQ.Ab8RN6JBcT01ZA6tam9Q36RXkWN9qiPkNS30qgWA_2-5K3au6A)  # active
 
 # ─── POLLING INTERVALS ────────────────────────────────────────────────────────
 FJ_POLL_INTERVAL   = int(os.environ.get("FJ_POLL_INTERVAL",   90))
