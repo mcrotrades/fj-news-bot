@@ -1,0 +1,46 @@
+name: FJ News Bot
+
+on:
+  schedule:
+    - cron: '0 0 * * *'    # 08:00 PHT
+    - cron: '0 5 * * *'    # 13:00 PHT
+    - cron: '0 10 * * *'   # 18:00 PHT
+    - cron: '0 15 * * *'   # 23:00 PHT
+    - cron: '0 20 * * *'   # 04:00 PHT
+
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 290
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run FJ News Bot
+        env:
+          BOT_TOKEN:           ${{ secrets.BOT_TOKEN }}
+          CHANNEL_COT:         ${{ secrets.CHANNEL_COT }}
+          CHANNEL_MCR:         ${{ secrets.CHANNEL_MCR }}
+          GROQ_API_KEY:        ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
+          MAX_RUNTIME_MINUTES: "270"
+        run: python fj_news_bot.py
