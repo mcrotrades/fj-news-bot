@@ -221,7 +221,7 @@ def call_groq(prompt: str) -> str:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "llama3-8b-8192",
+                "model": "llama-3.3-70b-versatile",
                 "max_tokens": 300,
                 "temperature": 0.3,
                 "messages": [
@@ -682,7 +682,7 @@ def build_weekly_digest() -> str:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "llama3-8b-8192",
+                    "model": "llama-3.3-70b-versatile",
                     "max_tokens": 400,
                     "temperature": 0.3,
                     "messages": [
